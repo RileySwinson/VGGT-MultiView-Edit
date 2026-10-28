@@ -1,0 +1,18 @@
+This repository is a modified fork of GaussianEditor
+(https://github.com/buaacyw/GaussianEditor, Chen et al., CVPR 2024), used under the
+S-Lab License 1.0 in LICENSE.txt. The licence and all upstream files remain as
+published by their authors except where listed here.
+
+Files changed from upstream:
+  threestudio/systems/GassuianEditorEdit.py            propagation switches, pre-pass, geometry refresh, mask clamp, frozen SH, noise cap, seeding
+  threestudio/models/guidance/instructpix2pix_guidance.py   latent paste of a composite during the early denoising steps, fixed timestep option
+  .gitignore, readme.md                                 fork notes
+
+Files added:
+  propagation/geometry.py          projection, warp, visibility tests, composite
+  propagation/priors.py            VGGT on a folder of images (runs in its own environment)
+  threestudio/systems/propagation.py   scene priors, VGGT subprocess, overlap table, pre-pass order, per-refresh composite
+  NOTICE                           this file
+
+VGGT (https://github.com/facebookresearch/vggt) is not included; propagation/priors.py imports it
+from a separate environment under its own licence.

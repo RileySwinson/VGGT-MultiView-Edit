@@ -202,3 +202,14 @@ exp/
 !threestudio/data
 !threestudio/utils/wonder3D/mvdiffusion/data
 tmp_add/
+
+# edit propagation fork: data, caches and run outputs
+dataset/
+edit_cache/
+*.npz
+*.npy
+node_modules/
+package.json
+package-lock.json
+!docs/data/
+!docs/data/**
