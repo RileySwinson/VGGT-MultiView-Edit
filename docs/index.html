@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta content="Consistent 3D Scene Editing by Propagating 2D Edits in Latent Space."
+    name="description" />
+  <meta content="Consistent 3D Scene Editing by Propagating 2D Edits in Latent Space" property="og:title" />
+  <meta content="Consistent 3D Scene Editing by Propagating 2D Edits in Latent Space."
+    property="og:description" />
+  <meta content="Consistent 3D Scene Editing by Propagating 2D Edits in Latent Space" property="twitter:title" />
+  <meta content="Consistent 3D Scene Editing by Propagating 2D Edits in Latent Space."
+    property="twitter:description" />
+  <meta property="og:type" content="website" />
+  <meta content="summary_large_image" name="twitter:card" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
+
+
+  <title>Consistent 3D Scene Editing by Propagating 2D Edits in Latent Space</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+
+  <link href="https://fonts.googleapis.com" rel="preconnect" />
+  <link href="https://fonts.gstatic.com" rel="preconnect" crossorigin="anonymous" />
+  <script src="https://ajax.googleapis.com/ajax/libs/webfont/1.6.26/webfont.js" type="text/javascript"></script>
+  <script
+    type="text/javascript">WebFont.load({ google: { families: ["Lato:100,100italic,300,300italic,400,400italic,700,700italic,900,900italic", "Montserrat:100,100italic,200,200italic,300,300italic,400,400italic,500,500italic,600,600italic,700,700italic,800,800italic,900,900italic", "Ubuntu:300,300italic,400,400italic,500,500italic,700,700italic", "Open Sans:300,300italic,400,400italic,600,600italic,700,700italic,800,800italic", "Changa One:400,400italic", "Varela Round:400", "Bungee Shade:regular", "Roboto:300,regular,500", "Bungee Outline:regular"] } });</script>
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1/jquery.min.js"></script>
+  <script src="script.js" type="text/javascript"></script>
+
+  <link href="style.css" rel="stylesheet" type="text/css" />
+
+  <link href="data/icons/wand_black.svg" rel="icon" media="(prefers-color-scheme: light)" />
+  <link href="data/icons/wand_white.svg" rel="icon" media="(prefers-color-scheme: dark)" />
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+
+<body>
+
+
+  <div class="section">
+    <div class="container">
+      <div class="title-row">
+        <h1 class="title">Consistent 3D Scene Editing by Propagating 2D Edits in Latent Space</h1>
+        <h1 class="subheader">COMP3740 Individual Computing Project, 2026</h1>
+      </div>
+      <div class="base-row author-row">
+        <div class="base-col author-col" style="width: 100%;">
+          <a href="#" target="_blank" class="author-text">
+            Riley Swinson
+          </a>
+        </div>
+      </div>
+      <div>
+        <h1 id="uc-berkeley">Australian National University</h1>
+      </div>
+
+      <div class="link-labels base-row">
+        <div class="base-col icon-col" style="width: 100%;"><a href="https://github.com/RileySwinson/VGGT-MultiView-Edit" class="link-block"><img
+              src="https://uploads-ssl.webflow.com/51e0d73d83d06baa7a00000f/5cae3b53b42ebb3dd4175a82_68747470733a2f2f7777772e69636f6e66696e6465722e636f6d2f646174612f69636f6e732f6f637469636f6e732f313032342f6d61726b2d6769746875622d3235362e706e67.png"
+              alt="paper" class="icon-img github-img-icon" /></a></div>
+      </div>
+      <div class="link-labels base-row">
+        <div class="base-col icon-col" style="width: 100%;">
+          <strong class="link-labels-text">&lt;/Code&gt;</strong>
+        </div>
+      </div>
+
+      <h2 class="section-header">Abstract</h2>
+      <div class="paragraph">
+        <p>
+          Text-driven editing of 3D Gaussian splatting scenes commonly edits rendered views one at a time with a 2D diffusion editor and fits the scene to the results. Because each view is edited independently, the views disagree, and the fitted scene averages them into a weak and inconsistent edit. Many approaches to multi-view consistency sacrifice this iterative refinement, and those that propagate edits through the scene's depth face a further difficulty: once an edit changes the object's shape, the depth of the original scene no longer matches the edited views. We warp already-edited views into the view being edited using camera and depth information, and inject the warped content into the editor's latent during the early denoising steps. All views are first edited once in a chain ordered by overlap, after which the Visual Geometry Grounded Transformer (VGGT) estimates depth from these edited views, which is then used for propagation throughout GaussianEditor's iterative loop. Our method generally improves multi-view consistency (MEt3R), has no result with CLIP directional similarity, and has generally higher-qualiy edits compared to GaussianEditor.
+        </p>
+      </div>
+      <video id="main-video" muted autoplay controls playsinline loop>
+        <source id="mp4" src="data/videos/top.mp4" type="video/mp4">
+      </video>
+
+      <h2 class="section-header">Results</h2>
+
+      <div class="arm-row">
+        <div class="arm-col">
+          <button class="thumbnail-btn" id="bear-unedited">Unedited</button>
+          <button class="thumbnail-btn" id="bear-stock">GaussianEditor</button>
+          <button class="thumbnail-btn" id="bear-scene">Ours, no VGGT</button>
+          <button class="thumbnail-btn" id="bear-targets">Ours</button>
+        </div>
+        <video id="bear-video" autobuffer muted autoplay webkit-playsinline playsinline loop>
+          <source id="bear-video-src" src="" type="video/mp4">
+        </video>
+      </div>
+      <div class="video-text">
+        <span class="overlay-text" id="bear-text">"Turn the bear into a Grizzly bear"</span>
+      </div>
+      <div class="base-row bear-thumbnail-row">
+        <div class="base-col bear-thumbnail-col">
+          <button class="thumbnail-btn" id="bear-grizzly">
+            Grizzly Bear
+          </button>
+        </div>
+        <div class="base-col bear-thumbnail-col">
+          <button class="thumbnail-btn" id="bear-polar">
+            Polar Bear
+          </button>
+        </div>
+        <div class="base-col bear-thumbnail-col">
+          <button class="thumbnail-btn" id="bear-golden">
+            Golden Statue
+          </button>
+        </div>
+      </div>
+
+      <div class="arm-row">
+        <div class="arm-col">
+          <button class="thumbnail-btn" id="farm-unedited">Unedited</button>
+          <button class="thumbnail-btn" id="farm-stock">GaussianEditor</button>
+          <button class="thumbnail-btn" id="farm-scene">Ours, no VGGT</button>
+          <button class="thumbnail-btn" id="farm-targets">Ours</button>
+        </div>
+        <video id="farm-video" autobuffer muted autoplay webkit-playsinline playsinline loop>
+          <source id="farm-video-src" src="" type="video/mp4">
+        </video>
+      </div>
+      <div class="video-text">
+        <span class="overlay-text" id="farm-text">"Make it autumn"</span>
+      </div>
+      <div class="base-row farm-thumbnail-row">
+        <div class="base-col farm-thumbnail-col">
+          <button class="thumbnail-btn" id="farm-autumn">
+            Autumn
+          </button>
+        </div>
+        <div class="base-col farm-thumbnail-col">
+          <button class="thumbnail-btn" id="farm-watercolor">
+            Watercolor
+          </button>
+        </div>
+      </div>
+
+      <div class="arm-row">
+        <div class="arm-col">
+          <button class="thumbnail-btn" id="face-unedited">Unedited</button>
+          <button class="thumbnail-btn" id="face-stock">GaussianEditor</button>
+          <button class="thumbnail-btn" id="face-scene">Ours, no VGGT</button>
+          <button class="thumbnail-btn" id="face-targets">Ours</button>
+        </div>
+        <video id="face-video" autobuffer muted autoplay webkit-playsinline playsinline loop>
+          <source id="face-video-src" src="" type="video/mp4">
+        </video>
+      </div>
+      <div class="video-text">
+        <span class="overlay-text" id="face-text">"Make him look like a clown"</span>
+      </div>
+      <div class="base-row bear-thumbnail-row">
+        <div class="base-col bear-thumbnail-col">
+          <button class="thumbnail-btn" id="face-clown">
+            Clown
+          </button>
+        </div>
+        <div class="base-col bear-thumbnail-col">
+          <button class="thumbnail-btn" id="face-marble">
+            Marble Sculpture
+          </button>
+        </div>
+        <div class="base-col bear-thumbnail-col">
+          <button class="thumbnail-btn" id="face-animation">
+            Animation Character
+          </button>
+        </div>
+      </div>
+
+
+      <h2 class="section-header">Training Progression</h2>
+      <video id="body-video" muted autoplay playsinline controls loop>
+        <source id="mp4" src="data/videos/training.mp4" type="video/mp4">
+      </video>
+      <div class="paragraph" style="text-align: center">
+        The targets and the render of one view over training for "Turn the bear into a Grizzly bear".
+      </div>
+
+      <h2 class="section-header">Ablation</h2>
+      <div class="arm-row">
+        <div class="arm-col">
+          <button class="thumbnail-btn" id="ablation-targets">Ours</button>
+          <button class="thumbnail-btn" id="ablation-abl_no_fit">No training changes</button>
+          <button class="thumbnail-btn" id="ablation-abl_no_prepass">No first pass</button>
+          <button class="thumbnail-btn" id="ablation-abl_vggt_origin">VGGT on unedited renders</button>
+          <button class="thumbnail-btn" id="ablation-scene">No VGGT</button>
+        </div>
+        <video id="ablation-video" autobuffer muted autoplay webkit-playsinline playsinline loop>
+          <source id="ablation-video-src" src="" type="video/mp4">
+        </video>
+      </div>
+      <div class="video-text">
+        <span class="overlay-text">"Turn the bear into a Grizzly bear", one component removed at a time</span>
+      </div>
+      <div class="paragraph">
+        <p>Difference from the full method on one seed. Lower MEt3R and higher CLIP consistency are better.</p>
+        <table style="margin: 0 auto; border-collapse: collapse; text-align: right;">
+          <tr><th style="text-align: left; padding: 4px 16px;">Removed component</th><th style="padding: 4px 16px;">MEt3R</th><th style="padding: 4px 16px;">CLIP consistency</th></tr>
+          <tr><td style="text-align: left; padding: 4px 16px;">Propagation (training changes kept)</td><td style="padding: 4px 16px;">+0.0019</td><td style="padding: 4px 16px;">&minus;0.100</td></tr>
+          <tr><td style="text-align: left; padding: 4px 16px;">Training changes (propagation kept)</td><td style="padding: 4px 16px;">+0.0050</td><td style="padding: 4px 16px;">+0.005</td></tr>
+          <tr><td style="text-align: left; padding: 4px 16px;">First pass</td><td style="padding: 4px 16px;">&minus;0.0005</td><td style="padding: 4px 16px;">&minus;0.008</td></tr>
+          <tr><td style="text-align: left; padding: 4px 16px;">VGGT on edits (VGGT on unedited renders)</td><td style="padding: 4px 16px;">&minus;0.0001</td><td style="padding: 4px 16px;">+0.002</td></tr>
+          <tr><td style="text-align: left; padding: 4px 16px;">VGGT (rendered scene depth)</td><td style="padding: 4px 16px;">+0.0002</td><td style="padding: 4px 16px;">+0.004</td></tr>
+        </table>
+      </div>
+
+      <h2 class="section-header">Acknowledgments</h2>
+      <div class="paragraph">
+        Supervised by Jing Zhang. The code builds on GaussianEditor and uses InstructPix2Pix and VGGT. This page
+        follows the template of the Instruct-NeRF2NeRF project page.
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

@@ -1,3 +1,115 @@
+# Edit propagation fork of GaussianEditor
+
+This is a modified fork of [GaussianEditor](https://github.com/buaacyw/GaussianEditor) (Chen et al., CVPR 2024),
+made for a COMP3740 project at the Australian National University. It is distributed under upstream's
+[S-Lab License 1.0](LICENSE.txt) (non-commercial). The changed and added files are listed in [NOTICE](NOTICE);
+the original readme follows below.
+
+The method: every target image that InstructPix2Pix produces for a camera starts from a composite of its
+already-edited neighbouring views, warped into that camera by depth and camera geometry and held in the latent
+during the early denoising steps. Before training, every view is edited once in an order chosen by overlap. VGGT is
+then run on those first-pass edits, and its depth and confidence drive every paste during training. Three fit-side
+changes keep the agreement: refreshes draw a capped noise level, the edit is clamped to the dilated segmentation
+mask, and the view-dependent colour coefficients are frozen.
+
+Everything runs through `launch.py` with `configs/edit-n2n.yaml`. With all the switches at their defaults the
+code is stock GaussianEditor. The WebUI is untouched and has not been tested with the switches.
+
+## Installation
+
+1. Install GaussianEditor as described in the original readme below (conda environment or pip, then the
+   rasteriser and simple-knn). Nothing extra is needed for the method itself.
+
+2. VGGT needs a newer torch than the editor, so it gets its own environment:
+   ```
+   python3.11 -m venv ~/vggt-venv
+   ~/vggt-venv/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+   ~/vggt-venv/bin/pip install git+https://github.com/facebookresearch/vggt
+   ```
+   Pick the torch index that matches your driver. Tell the editor where that python is, either with
+   `system.paste_vggt_python=~/vggt-venv/bin/python` on the command line or with `export VGGT_PYTHON=...`.
+   The VGGT-1B weights (about 5 GB) download from Hugging Face on first use. VGGT runs as a subprocess while
+   the editor's models are moved to the CPU, so a 24 GB card holds everything.
+
+3. InstructPix2Pix, Stable Diffusion v1.5 and LangSAM's weights download on first use, as in upstream.
+
+## Data
+
+One folder per scene with `images/`, COLMAP `sparse/0/` and a 3D Gaussian Splatting model trained with the
+original 3DGS code for 30k iterations. The results used the `bear` and `face` scenes of Instruct-NeRF2NeRF and the
+`bicycle` scene of Mip-NeRF 360.
+
+## Running
+
+Stock GaussianEditor and the method differ only in the last three lines. 48 cameras are edited; the rest are held
+out. The per-scene flags are the ones GaussianEditor's own scripts use for each scene.
+
+```
+SHARED="system.loss.lambda_anchor_color=0 system.loss.lambda_anchor_geo=50 system.loss.lambda_anchor_scale=50 \
+  system.loss.lambda_anchor_opacity=50 system.max_densify_percent=0.01 system.densify_from_iter=100 \
+  system.densification_interval=100"
+
+# bear
+SCENE="system.mask_thres=0.8 system.anchor_weight_init_g0=0.01 system.anchor_weight_init=0.01 \
+  system.anchor_weight_multiplier=1.3 system.gs_lr_scaler=0.1 system.gs_final_lr_scaler=0.1 system.color_lr_scaler=1 \
+  system.opacity_lr_scaler=2 system.scaling_lr_scaler=2 system.rotation_lr_scaler=2 system.densify_until_iter=2001 \
+  system.edit_until_step=2200 trainer.max_steps=2500 system.seg_prompt=bear"
+# face
+SCENE="system.anchor_weight_init_g0=0.05 system.anchor_weight_init=0.1 system.anchor_weight_multiplier=1.3 \
+  system.gs_lr_scaler=5 system.gs_final_lr_scaler=5 system.color_lr_scaler=5 system.opacity_lr_scaler=2 \
+  system.scaling_lr_scaler=2 system.rotation_lr_scaler=2 system.densify_until_iter=1501 trainer.max_steps=1500"
+# bicycle
+SCENE="system.anchor_weight_init_g0=0.05 system.anchor_weight_init=0.1 system.anchor_weight_multiplier=1.3 \
+  system.gs_lr_scaler=3 system.gs_final_lr_scaler=2 system.color_lr_scaler=3 system.opacity_lr_scaler=2 \
+  system.scaling_lr_scaler=2 system.rotation_lr_scaler=2 system.densify_until_iter=1300 system.edit_until_step=1000 \
+  trainer.max_steps=1500"
+
+python launch.py --config configs/edit-n2n.yaml --train --gpu 0 \
+  data.source=dataset/bear system.gs_source=dataset/bear/bear.ply data.max_view_num=48 seed=0 \
+  system.prompt_processor.prompt="Turn the bear into a Grizzly bear." \
+  $SHARED $SCENE \
+  system.paste=true system.paste_k=6 system.paste_fullres=true system.paste_color_match=true system.paste_fill=true \
+  system.paste_prepass=true system.paste_prepass_ig=2.0 system.paste_prepass_gs=10 \
+  system.freeze_sh_rest=true system.clamp_to_mask=8 system.refresh_t_max=600
+```
+
+Outputs go to `outputs/edit-n2n/<prompt>@<time>/save/`: `edits/` (every target the loop produced, `pre*` from the
+first pass), `paste/` (each composite next to its cover, and the overlap tables), `targets/` and
+`priors_targets.npz` (what VGGT saw and returned), `t_sequence.txt` (the noise level of every refresh),
+`it<N>-test/` (the final render of every camera) and `last.ply`.
+
+## Switches
+
+All in `threestudio/systems/GassuianEditorEdit.py`. Defaults are stock GaussianEditor.
+
+| switch | default | results runs | meaning |
+|---|---|---|---|
+| `paste` | false | true | paste the edited neighbours into the latent of every refreshed target |
+| `paste_k` | 2 | 6 | sources per paste, ranked by overlap |
+| `paste_release` | 0.6 | 0.6 | fraction of the denoising steps the paste is held for |
+| `paste_fullres` | false | true | warp the 512 target directly instead of at the priors' resolution |
+| `paste_color_match` | false | true | scale each source to the average edit colour of all sources |
+| `paste_fill` | false | true | fill the unpasted part of the composite with the view's own render |
+| `paste_prepass` | false | true | edit every view once before training, in overlap order |
+| `paste_prepass_t` | 900 | 900 | noise level of the first-pass edits |
+| `paste_prepass_ig` | 1.5 | 2.0 | image guidance of the first-pass edits |
+| `paste_prepass_gs` | 7.5 | 10 | text guidance of the first-pass edits |
+| `paste_geometry` | vggt_targets | vggt_targets | `scene`: rendered depth throughout. `vggt_targets`: VGGT on the targets once every view has one |
+| `paste_geometry_refresh` | 0 | 0 | re-run VGGT every this many steps |
+| `paste_vggt_python` | "" | | python of the VGGT environment, or set `VGGT_PYTHON` |
+| `paste_offload` | true | true | move InstructPix2Pix and LangSAM to the CPU while VGGT runs |
+| `freeze_sh_rest` | false | true | freeze the view-dependent colour coefficients |
+| `refresh_t_max` | -1 | 600 | cap on the noise level of refreshes of a view that already has a target |
+| `clamp_to_mask` | -1 | 8 | keep the edit inside the segmentation mask dilated by this many pixels |
+
+## Differences from the runs in the report
+
+The report's runs used a release level ranked by VGGT's confidence per pixel (0.4 for the most confident, 0.8 for
+the least). This version holds every pasted pixel for the same fraction `paste_release`. The report's "no VGGT"
+runs already used this flat release.
+
+---
+
 
 <p align="center">
   <img src="docs/figs/logo.png" align="center" width="50%">

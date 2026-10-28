@@ -169,16 +169,37 @@ class InstructPix2PixGuidance(BaseObject):
         latents: Float[Tensor, "B 4 DH DW"],
         image_cond_latents: Float[Tensor, "B 4 DH DW"],
         t: Int[Tensor, "B"],
+        inject_latents=None,
+        cover=None,
+        release=None,
+        condition_scale=None,
+        guidance_scale=None,
     ) -> Float[Tensor, "B 4 DH DW"]:
+        if condition_scale is None:
+            condition_scale = self.cfg.condition_scale
+        if guidance_scale is None:
+            guidance_scale = self.cfg.guidance_scale
         self.scheduler.config.num_train_timesteps = t.item()
         self.scheduler.set_timesteps(self.cfg.diffusion_steps)
         with torch.no_grad():
             # add noise
             noise = torch.randn_like(latents)
             latents = self.scheduler.add_noise(latents, noise, t)  # type: ignore
+            if inject_latents is not None:
+                # paste the composite into the covered cells, noised with the same noise, until the release level
+                shrink = lambda m: F.interpolate(m[None, None].to(latents), latents.shape[-2:], mode="area")
+                cover, release = shrink(cover), shrink(release) * t
+
+                def paste(lat, ts):
+                    weight = cover * (release < ts.item())
+                    return weight * self.scheduler.add_noise(inject_latents, noise, ts.reshape(1)) + (1 - weight) * lat
+
+                latents = paste(latents, t)
             threestudio.debug("Start editing...")
             # sections of code used from https://github.com/huggingface/diffusers/blob/main/src/diffusers/pipelines/stable_diffusion/pipeline_stable_diffusion_instruct_pix2pix.py
             for i, t in enumerate(self.scheduler.timesteps):
+                if inject_latents is not None:
+                    latents = paste(latents, t)
                 # predict the noise residual with unet, NO grad!
                 with torch.no_grad():
                     # pred noise
@@ -197,8 +218,8 @@ class InstructPix2PixGuidance(BaseObject):
                 )
                 noise_pred = (
                     noise_pred_uncond
-                    + self.cfg.guidance_scale * (noise_pred_text - noise_pred_image)
-                    + self.cfg.condition_scale * (noise_pred_image - noise_pred_uncond)
+                    + guidance_scale * (noise_pred_text - noise_pred_image)
+                    + condition_scale * (noise_pred_image - noise_pred_uncond)
                 )
 
                 # get previous sample, continue loop
@@ -243,6 +264,12 @@ class InstructPix2PixGuidance(BaseObject):
         rgb: Float[Tensor, "B H W C"],
         cond_rgb: Float[Tensor, "B H W C"],
         prompt_utils: PromptProcessorOutput,
+        inject=None,
+        cover=None,
+        release=None,
+        t=None,
+        condition_scale=None,
+        guidance_scale=None,
         **kwargs,
     ):
         batch_size, H, W, _ = rgb.shape
@@ -267,6 +294,13 @@ class InstructPix2PixGuidance(BaseObject):
         )
         cond_latents = self.encode_cond_images(cond_rgb_BCHW_HW8)
 
+        # encode the composite. the posterior mode draws no random numbers, so t and the noise match a run without it
+        inject_latents = None
+        if inject is not None:
+            inject_BCHW = F.interpolate(inject.permute(2, 0, 1)[None].to(rgb), (RH, RW), mode="bilinear", align_corners=False)
+            posterior = self.vae.encode((inject_BCHW * 2 - 1).to(self.weights_dtype)).latent_dist
+            inject_latents = (posterior.mode() * self.vae.config.scaling_factor).to(rgb.dtype)
+
         temp = torch.zeros(1).to(rgb.device)
         text_embeddings = prompt_utils.get_text_embeddings(temp, temp, temp, False)
         text_embeddings = torch.cat(
@@ -280,7 +314,7 @@ class InstructPix2PixGuidance(BaseObject):
             [batch_size],
             dtype=torch.long,
             device=self.device,
-        )
+        ) if t is None else torch.full([batch_size], t, dtype=torch.long, device=self.device)
 
         if self.cfg.use_sds:
             grad = self.compute_grad_sds(text_embeddings, latents, cond_latents, t)
@@ -296,11 +330,14 @@ class InstructPix2PixGuidance(BaseObject):
                 "max_step": self.max_step,
             }
         else:
-            edit_latents = self.edit_latents(text_embeddings, latents, cond_latents, t)
+            edit_latents = self.edit_latents(
+                text_embeddings, latents, cond_latents, t,
+                inject_latents, cover, release, condition_scale, guidance_scale,
+            )
             edit_images = self.decode_latents(edit_latents)
             edit_images = F.interpolate(edit_images, (H, W), mode="bilinear")
 
-            return {"edit_images": edit_images.permute(0, 2, 3, 1)}
+            return {"edit_images": edit_images.permute(0, 2, 3, 1), "t": int(t[0])}
 
     def update_step(self, epoch: int, global_step: int, on_load_weights: bool = False):
         # clip grad for stable training as demonstrated in
